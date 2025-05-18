@@ -1,0 +1,4 @@
+ https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ar-engine-overview@yes
+ https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arkgraphics-api@yes
+ https://developer.huawei.com/consumer/cn/doc/harmonyos-references/arkgraphics-arkts@yes
+ https://developer.huawei.com/consumer/cn/doc/harmonyos-references/js-apis-effectkit@yes
