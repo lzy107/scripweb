@@ -44,15 +44,24 @@ def scrape_url(url):
                 # 删除空行
                 markdown_content = os.linesep.join([s for s in markdown_content.splitlines() if s.strip()])
 
+                # 确保docs目录存在
+                docs_dir = "docs"
+                if not os.path.exists(docs_dir):
+                    os.makedirs(docs_dir)
+                    print(f"创建目录: {docs_dir}")
+
                 # 从URL中提取文件名
                 file_name = url.split('/')[-1]
                 if not file_name.endswith('.md'):
                     file_name = file_name + ".md"
                 
-                with open(file_name, "w", encoding="utf-8") as f:
+                # 设置文件保存路径到docs子目录
+                file_path = os.path.join(docs_dir, file_name)
+                
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(markdown_content)
 
-                print(f"成功抓取内容并保存到 {file_name}")
+                print(f"成功抓取内容并保存到 {file_path}")
                 print(f"Markdown文件大小: {len(markdown_content)} 字符")
             else:
                 print("未能获取到任何HTML内容")
@@ -80,14 +89,12 @@ def update_config_status(config_file, url, new_status):
     updated_lines = []
     for line in lines:
         if url in line:
-            # 使用@作为分隔符替换状态部分
-            parts = line.split("@")
-            if len(parts) >= 1:
-                updated_line = parts[0] + f"@{new_status}\n"
-                updated_lines.append(updated_line)
-                print(f"已将URL {url} 的状态更新为: {new_status}")
-            else:
-                updated_lines.append(line)
+            # 去除可能存在的旧状态标记
+            line_without_status = re.sub(r'@(yes|no).*$', '', line.strip())
+            # 添加新状态标记
+            updated_line = f"{line_without_status}@{new_status}\n"
+            updated_lines.append(updated_line)
+            print(f"已将URL {url} 的状态更新为: {new_status}")
         else:
             updated_lines.append(line)
     
@@ -113,26 +120,27 @@ def main():
             continue
             
         try:
-            # 使用正则表达式匹配URL和状态，使用@作为分隔符
-            match = re.match(r'(https?://[^\s@]+)@(yes|no)', line)
-            if match:
-                url = match.group(1)
-                status = match.group(2)
+            # 检查行是否包含URL
+            url_match = re.search(r'(https?://[^\s]+)', line)
+            if not url_match:
+                print(f"无效的配置行，未找到URL: {line}")
+                continue
                 
-                if status.lower() == "yes":
-                    print(f"跳过URL: {url}，配置为: {status}")
-                    continue
-                elif status.lower() == "no":
-                    print(f"处理URL: {url}，配置为: {status}")
-                    success = scrape_url(url)
-                    
-                    # 如果成功处理了URL，则更新配置文件中的状态
-                    if success:
-                        update_config_status(config_file, url, "yes")
-                else:
-                    print(f"无效的状态值: {status}，应为 'yes' 或 'no'")
-            else:
-                print(f"无效的配置行: {line}")
+            url = url_match.group(1)
+            
+            # 检查是否明确标记为yes
+            if "@yes" in line:
+                print(f"跳过URL: {url}，配置为: yes")
+                continue
+            
+            # 处理URL（无论是否标记为no或没有标记）
+            print(f"处理URL: {url}")
+            success = scrape_url(url)
+            
+            # 如果成功处理了URL，则更新配置文件中的状态
+            if success:
+                update_config_status(config_file, url, "yes")
+            
         except Exception as e:
             print(f"处理配置行时出错: {line}")
             print(f"错误信息: {e}")
