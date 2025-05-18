@@ -65,17 +65,18 @@ def scrape_url(url):
                 print(f"Markdown文件大小: {len(markdown_content)} 字符")
             else:
                 print("未能获取到任何HTML内容")
+                file_path = None
                 
             browser.close()
             print("浏览器已关闭")
-            return True
+            return file_path  # 返回创建的文件路径，如果失败则返回None
 
     except Exception as e:
         print(f"发生错误: {e}")
         if 'browser' in locals() and browser.is_connected():
             browser.close()
             print("发生错误后，浏览器已关闭")
-        return False
+        return None
 
 def update_config_status(config_file, url, new_status):
     """
@@ -102,6 +103,34 @@ def update_config_status(config_file, url, new_status):
     with open(config_file, "w", encoding="utf-8") as f:
         f.writelines(updated_lines)
 
+def combine_markdown_files(file_paths, output_file_path):
+    """
+    合并多个markdown文件内容到一个文件中
+    
+    Args:
+        file_paths: 要合并的markdown文件路径列表
+        output_file_path: 输出的合并文件路径
+    """
+    combined_content = []
+    
+    for file_path in file_paths:
+        if file_path and os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                # 添加文件名作为标题
+                file_name = os.path.basename(file_path)
+                header = f"\n\n## {file_name}\n\n"
+                combined_content.append(header + content)
+    
+    if combined_content:
+        with open(output_file_path, "w", encoding="utf-8") as f:
+            f.write("".join(combined_content))
+        print(f"成功合并{len(file_paths)}个文件到 {output_file_path}")
+        return True
+    else:
+        print("没有找到要合并的文件")
+        return False
+
 def main():
     config_file = "config.txt"
     
@@ -114,12 +143,44 @@ def main():
     with open(config_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
     
+    # 初始化变量，用于跟踪#begin::#end区域
+    in_group = False
+    group_name = ""
+    group_files = []
+    
     for line in lines:
         line = line.strip()
         if not line:
             continue
             
         try:
+            # 检查是否是#begin::标记
+            begin_match = re.match(r'#begin::\s*(\S+)', line)
+            if begin_match:
+                group_name = begin_match.group(1)
+                in_group = True
+                group_files = []
+                print(f"开始处理文件组: {group_name}")
+                continue
+                
+            # 检查是否是#end::标记
+            end_match = re.match(r'#end::\s*(\S+)', line)
+            if end_match:
+                end_group_name = end_match.group(1)
+                if in_group and end_group_name == group_name:
+                    # 合并文件
+                    if group_files:
+                        docs_dir = "docs"
+                        combined_file = os.path.join(docs_dir, f"combined--{group_name}.md")
+                        combine_markdown_files(group_files, combined_file)
+                    
+                    # 重置状态
+                    in_group = False
+                    group_name = ""
+                    group_files = []
+                    print(f"结束处理文件组: {end_group_name}")
+                continue
+            
             # 检查行是否包含URL
             url_match = re.search(r'(https?://[^\s]+)', line)
             if not url_match:
@@ -135,10 +196,14 @@ def main():
             
             # 处理URL（无论是否标记为no或没有标记）
             print(f"处理URL: {url}")
-            success = scrape_url(url)
+            file_path = scrape_url(url)
+            
+            # 如果在组内且成功抓取了文件，添加到组文件列表
+            if in_group and file_path:
+                group_files.append(file_path)
             
             # 如果成功处理了URL，则更新配置文件中的状态
-            if success:
+            if file_path:
                 update_config_status(config_file, url, "yes")
             
         except Exception as e:
