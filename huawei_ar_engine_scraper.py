@@ -29,6 +29,19 @@ def scrape_url(url):
 
             if main_content_html:
                 markdown_content = md(main_content_html)
+                
+                # 使用正则表达式查找"展开章节"位置，只保留该位置之后的内容
+                content_start_pattern = r"展开章节"
+                match = re.search(content_start_pattern, markdown_content)
+                if match:
+                    start_index = match.start()
+                    # 只保留从"展开章节"开始的内容
+                    markdown_content = markdown_content[start_index:]
+                    print(f"已找到实际内容起始位置，过滤前{start_index}个字符")
+                else:
+                    print("未找到内容起始标记'展开章节'，保留全部内容")
+                
+                # 删除空行
                 markdown_content = os.linesep.join([s for s in markdown_content.splitlines() if s.strip()])
 
                 # 从URL中提取文件名
